@@ -39,7 +39,6 @@ def handle_client(conn, other_conn):
             data = conn.recv(1024)
             if not data:
                 break
-            process_request(pickle.loads(data))
             other_conn.sendall(data)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
@@ -76,9 +75,6 @@ def send_startup_data(sock):
                     map_tiles[x][y][i+1] = 1
 
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
-
-def process_request(request):
-    return
 
 connections = []
 connections.append(accept_connection(local_server))

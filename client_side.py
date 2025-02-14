@@ -1,13 +1,14 @@
 import pygame
 import numpy
 import random
-import math
 import socket
 import pickle
+import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
 
-if int(input("Local (1) or server (2): ")) == 1:
+option = int(input("Local (0) or remote (1): "))
+if option == 0:
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     error = True
     while error:
@@ -78,9 +79,11 @@ class Thing(pygame.sprite.Sprite):
             return True
         else:
             return False
-
+'''
+Units: 1 = builder, 2 = soldier
+'''
 class Unit(Thing):
-    def __init__(self,type,x_loc,y_loc,actions = None):
+    def __init__(self,type,x_loc,y_loc):
         self.image = pygame.Surface((tile_width-100, tile_width-100))
         self.image.fill((0,255,255))
         rect = self.image.get_rect(topleft=(50+(x_loc-x_disp)*tile_width,50+(y_loc-y_disp)*tile_width))
@@ -88,7 +91,7 @@ class Unit(Thing):
         if type == 1:
             self.moves_per_turn = 2
             self.moves = 2
-            self.actions = actions
+            self.actions = 3
 
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(50+(self.x-x_disp)*tile_width,50+(self.y-y_disp)*tile_width))
@@ -106,12 +109,12 @@ class Unit(Thing):
     def build(self, type):
         if self.actions > 0:
             self.actions -= 1
-            return Building(type,self.x,self.y)
+            return Building(type, self.x, self.y, option)
         else:
             return False
 
 class Building(Thing):
-    def __init__(self,type,x_loc,y_loc):
+    def __init__(self,type,x_loc,y_loc,team):
         self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
         rect = self.image.get_rect(topleft=(25+(x_loc-x_disp)*tile_width,25+(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
@@ -130,13 +133,29 @@ while map_tiles[x_disp+6][y_disp+4].type == 4:
     print("Bad start")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
-my_units = pygame.sprite.Group(Unit(1, x_disp+6, y_disp+4, 3))
-my_units_list = my_units.sprites()
+my_units_list = [Unit(1, x_disp+6, y_disp+4, 3)]
+
 
 my_buildings_list = []
+
+'''Processing request(
+building (0) / unit (1)
+create (0), move(1)
+location (x,y)
+index/type = None
+)
 '''
-Units: 1 = builder, 2 = soldier
-'''
+def process_requests():
+    array = pickle.loads(client.recv(4096))
+    if array[0] == 0:
+        if array[1] == 0:
+            my_buildings_list.append(Building(array[2],array[3],array[4],array[5]))
+    elif array[0] == 1:
+        if array[1] == 0:
+            my_units_list.append(Unit(array[2],array[3],array[4]))
+        elif array[1] == 1:
+            my_units_list[array[2]].move(array[3],array[4])
+
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
         for y in range(y_disp, y_disp+tile_disp_y):
@@ -161,7 +180,7 @@ def make_visible(x_pos,y_pos,radius):
                 visible_tiles[x][y] = map_tiles[x][y]
 
 def draw_units():
-    for unit in my_units:
+    for unit in my_units_list:
         if unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
@@ -200,6 +219,9 @@ pygame.display.flip()
 pygame.display.flip()
 pygame.display.flip()
 
+process_requests_thread = threading.Thread(target=process_requests)
+process_requests_thread.start()
+
 # Game Loop:
 pygame.event.set_blocked(pygame.MOUSEMOTION)
 running = True
@@ -229,7 +251,7 @@ while running:
                 redraw_map = True
             elif event.key == pygame.K_RETURN: # Pass turn
                 turn_running = False
-                for unit in my_units:
+                for unit in my_units_list:
                     unit.moves = unit.moves_per_turn
 
             if unit_is_selected:
