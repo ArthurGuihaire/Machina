@@ -5,7 +5,6 @@ import pickle
 import random
 import numpy
 import math
-import queue
 
 # Game variables to be socket-transfered
 map_width, map_height = 50,50
@@ -80,12 +79,12 @@ def send_startup_data(sock):
                     map_tiles[x][y][i+1] = 1
     import time
     print(time.time())
-    sock.recv(16)
+    sock.recv(1)
     print(time.time())
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
 
 print("Waiting for connection...")
-connection=accept_connection(local_server)
-threading.Thread(target=handle_client, args=(local_server)).start()
+conn=accept_connection(local_server)
+threading.Thread(target=handle_client, args=(conn,)).start()
 
 print("Servers are running... Press Ctrl+C to stop.")

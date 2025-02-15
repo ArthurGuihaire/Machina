@@ -15,21 +15,21 @@ if option == 0:
         error = False
         try:
             client.connect("/tmp/local_socket")
-        except FileNotFoundError:
+        except:
             print("Server is not running, trying again in 1 second")
             error = True
-            pygame.time.sleep(1000)
+            pygame.time.wait(1000)
 else:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 client.sendall(pickle.dumps("Client connected"))
 
 default_font = pygame.font.Font(None, 72)
-screen_width, screen_height = 2400, 1600
 tile_width = 200
+display_info = pygame.display.Info()
+screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.toggle_fullscreen()
-#pygame.time.wait(100) # Wait for window to finish initializing
+#pygame.display.toggle_fullscreen()
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
 
@@ -55,7 +55,7 @@ class Tile(pygame.sprite.Sprite):
         self.image.fill(colors[self.type])
         self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
         self.rect = self.image.get_rect()
-        self.resources = array[1:num_resource_types+1]
+        self.resources = array[1:]
     
     def draw(self,x,y,scaled):
         if scaled:
@@ -118,17 +118,31 @@ class Building(Thing):
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
 
+def recieve_large(sock, size):
+    sent = 0
+    data = bytearray()
+    while len(data) < size:
+        data.extend(sock.recv(size-len(data)))
+    return data
+
 import time
 print("Sending bytes")
 print(time.time())
 client.send(True.to_bytes(1,'little'))
-map_tiles = numpy.frombuffer(client.recv(map_width*map_height*7), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
+array_size = map_width*map_height*(1+num_resource_types)
+map_info = numpy.frombuffer(recieve_large(client, array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
+map_tiles = []
+for x in range(map_width):
+    map_tiles.append([])
+    for y in range(map_height):
+        map_tiles[x].append(Tile(map_info[x][y]))
+
 visible_tiles = numpy.empty((map_width, map_height), dtype = object)
 
 # Start location; top-left of screen
 x_disp = random.randint(0, map_width - 12)
 y_disp = random.randint(0, map_height - 8)
-while map_tiles[x_disp+6][y_disp+4][0] == 4:
+while map_info[x_disp+6][y_disp+4][0] == 4:
     print("Bad start")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
@@ -147,9 +161,12 @@ team)
 '''
 def process_requests():
     while True:
-        process_request(pickle.loads(client.recv(4096)))
+        data = client.recv(1024)
+        if data:
+            process_request(pickle.loads(data))
 
 def process_request(array):
+    print(array)
     if array[0] == 0:
         if array[5] == 0:
             my_buildings_list.append(Building(array[1],array[2],array[3]))
@@ -158,7 +175,7 @@ def process_request(array):
     elif array[0] == 1:
         my_units_list.append(Unit(array[1],array[2],array[3]))
     elif array[0] == 2:
-            my_units_list[array[1]].move(array[2],array[3])
+            my_units_list[array[3]].move(array[1],array[2])
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -223,7 +240,7 @@ pygame.display.flip()
 pygame.display.flip()
 pygame.display.flip()
 
-process_requests_thread = threading.Thread(target=process_requests)
+process_requests_thread = threading.Thread(target=process_requests, daemon=True)
 process_requests_thread.start()
 
 # Game Loop:
