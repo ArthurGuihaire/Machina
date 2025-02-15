@@ -25,25 +25,30 @@ if os.path.exists(local_socket_path):
     os.remove(local_socket_path)
 # Create two servers: one local, one remote
 local_server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-remote_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-remote_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 local_server.bind(local_socket_path)  # local
-remote_server.bind(("0.0.0.0", 5000))  # remote
 local_server.listen()
-remote_server.listen()
 
-def handle_client(conn, other_conn):
+'''def run_program(program):
+    with open(program) as file:
+        exec(file.read())
+threading.Thread(target=run_program, args=('client_side.py',)).start()'''
+
+def send_large_data(sock, data): #ChatGPT code
+    total_sent = 0
+    while total_sent < len(data):
+        sent = sock.send(data[total_sent:])
+        total_sent += sent
+
+def handle_client(conn):
     try:
         while True:
             data = conn.recv(1024)
             if not data:
                 break
-            other_conn.sendall(data)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
     finally:
-        connections.remove(conn)
         conn.close()
 
 def accept_connection(server):
@@ -73,13 +78,14 @@ def send_startup_data(sock):
             for i in range(num_resource_types):
                 if random.random() < resource_frequency[biome_type-1][i]:
                     map_tiles[x][y][i+1] = 1
+    import time
+    print(time.time())
+    sock.recv(16)
+    print(time.time())
+    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
 
-    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
-
-connections = []
-connections.append(accept_connection(local_server))
-connections.append(accept_connection(remote_server))
-threading.Thread(target=handle_client, args=(local_server,remote_server)).start()
-threading.Thread(target=handle_client, args=(remote_server,local_server)).start()
+print("Waiting for connection...")
+connection=accept_connection(local_server)
+threading.Thread(target=handle_client, args=(local_server)).start()
 
 print("Servers are running... Press Ctrl+C to stop.")

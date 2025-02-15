@@ -7,7 +7,7 @@ import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
 
-option = int(input("Local (0) or remote (1): "))
+option = 0 #int(input("Local (0) or remote (1): "))
 if option == 0:
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     error = True
@@ -33,17 +33,18 @@ pygame.display.toggle_fullscreen()
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
 
-map_width, map_height = pickle.loads(client.recv(1024))
+map_width, map_height = pickle.loads(client.recv(56))
+print(f"Transferred: ({map_width}, {map_height})")
 draw_width = min(screen_width/map_width, screen_height/map_height)
 
 colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
 types_string = ["Village","Farm","Water Wheel"]
-resource_types = ["Water", "Food", "Stone", "Wood"]
+resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
 num_resource_types = len(resource_types)
 
 unit_is_selected = False
-unit_selected = None
+unit_selected = 0
 
 class Tile(pygame.sprite.Sprite):
     def __init__(self,array):
@@ -73,12 +74,7 @@ class Thing(pygame.sprite.Sprite):
         return x_loc <= self.x < x_loc+tile_disp_x and y_loc <= self.y < y_loc+tile_disp_y
 
     def get_collisions(self,x_loc,y_loc):
-        if self.x == int(x_loc/tile_width+x_disp) and self.y == int(y_loc/tile_width+y_disp):
-            global unit_selected
-            unit_selected = self
-            return True
-        else:
-            return False
+        return self.x == int(x_loc/tile_width+x_disp) and self.y == int(y_loc/tile_width+y_disp)
 '''
 Units: 1 = builder, 2 = soldier
 '''
@@ -103,58 +99,66 @@ class Unit(Thing):
                     self.moves -= 1
                     self.x += move_x
                     self.y += move_y
-                    return True
-        return False
+                    global redraw_map
+                    redraw_map = True
 
-    def build(self, type):
+    def build(self):
         if self.actions > 0:
             self.actions -= 1
-            return Building(type, self.x, self.y, option)
-        else:
-            return False
+            process_request((0,self.x,self.y,choose_buildings()))
 
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
         self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
         rect = self.image.get_rect(topleft=(25+(x_loc-x_disp)*tile_width,25+(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
+        self.team = team
         if type == 1:
             pygame.draw.circle(self.image,(255,0,255),self.image.get_rect().center,75)
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
-            
-map_tiles = numpy.frombuffer(client.recv(65536))
+
+import time
+print("Sending bytes")
+print(time.time())
+client.send(True.to_bytes(1,'little'))
+map_tiles = numpy.frombuffer(client.recv(map_width*map_height*7), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
 visible_tiles = numpy.empty((map_width, map_height), dtype = object)
 
 # Start location; top-left of screen
 x_disp = random.randint(0, map_width - 12)
 y_disp = random.randint(0, map_height - 8)
-while map_tiles[x_disp+6][y_disp+4].type == 4:
+while map_tiles[x_disp+6][y_disp+4][0] == 4:
     print("Bad start")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
-my_units_list = [Unit(1, x_disp+6, y_disp+4, 3)]
+my_units_list = [Unit(1, x_disp+6, y_disp+4)]
 
 
 my_buildings_list = []
+opponent_buildings_list =[]
 
 '''Processing request(
-building (0) / unit (1)
-create (0), move(1)
-location (x,y)
-index/type = None
-)
+new building (0) new unit (1) move unit (2)
+x,
+y,
+index/type/ (create unit) team
+team)
 '''
 def process_requests():
-    array = pickle.loads(client.recv(4096))
+    while True:
+        process_request(pickle.loads(client.recv(4096)))
+
+def process_request(array):
     if array[0] == 0:
-        if array[1] == 0:
-            my_buildings_list.append(Building(array[2],array[3],array[4],array[5]))
+        if array[5] == 0:
+            my_buildings_list.append(Building(array[1],array[2],array[3]))
+        else:
+            opponent_buildings_list.append(Building(array[1],array[2],array[3]))
     elif array[0] == 1:
-        if array[1] == 0:
-            my_units_list.append(Unit(array[2],array[3],array[4]))
-        elif array[1] == 1:
-            my_units_list[array[2]].move(array[3],array[4])
+        my_units_list.append(Unit(array[1],array[2],array[3]))
+    elif array[0] == 2:
+            my_units_list[array[1]].move(array[2],array[3])
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -254,32 +258,30 @@ while running:
                 for unit in my_units_list:
                     unit.moves = unit.moves_per_turn
 
-            if unit_is_selected:
+            elif unit_is_selected:
                 if event.key == pygame.K_w:
-                    redraw_map = unit_selected.move(0,-1)
+                    process_request((2,0,-1,unit_selected))
                 elif event.key == pygame.K_s:
-                    redraw_map = unit_selected.move(0,1)
+                    process_request((2,0,1,unit_selected))
                 elif event.key == pygame.K_a:
-                    redraw_map = unit_selected.move(-1,0)
+                    process_request((2,-1,0,unit_selected))
                 elif event.key == pygame.K_d:
-                    redraw_map = unit_selected.move(1,0)
+                    process_request((2,1,0,unit_selected))
                 elif event.key == pygame.K_b:
-                    building = unit.build(choose_buildings())
-                    if building:
-                        my_buildings_list.append(building)
-                        redraw_map = True
+                    my_units_list[unit_selected].build()
 
                 if redraw_map:
-                    make_visible(unit_selected.x,unit_selected.y,3)
+                    make_visible(my_units_list[unit_selected].x,my_units_list[unit_selected].y,3)
         elif event.type == pygame.QUIT:
             running = False
             turn_running = False
         elif event.type == pygame.MOUSEBUTTONDOWN:
             # Find collisions with units and icons
             unit_is_selected = False
-            for unit in my_units_list:
-                if unit.get_collisions(event.pos[0],event.pos[1]):
+            for i in range(len(my_units_list)):
+                if my_units_list[i].get_collisions(event.pos[0],event.pos[1]):
                     unit_is_selected = True
+                    unit_selected = i
 
         if redraw_map:
             #screen.fill((0,0,0))
