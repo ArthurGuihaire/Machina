@@ -109,7 +109,8 @@ class Unit(Thing):
     def build(self):
         if self.actions > 0:
             self.actions -= 1
-            process_request((0,self.x,self.y,choose_buildings(),0))
+            process_request((0,self.x,self.y,choose_buildings(),1))
+            threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),))
 
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
@@ -122,12 +123,15 @@ class Building(Thing):
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
 
-def recieve_large(sock, size):
+def recieve_large(size):
     sent = 0
     data = bytearray()
     while len(data) < size:
-        data.extend(sock.recv(size-len(data)))
+        data.extend(client.recv(size-len(data)))
     return data
+
+def send_request(request):
+    client.sendall(pickle.dumps(request))
 
 import time
 print("Sending bytes")
@@ -151,6 +155,7 @@ while map_info[x_disp+6][y_disp+4][0] == 4:
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
+opponent_units_list = []
 
 
 my_buildings_list = []
@@ -160,7 +165,7 @@ opponent_buildings_list =[]
 new building (0) new unit (1) move unit (2)
 x,
 y,
-index/type/ (create unit) team
+index/type
 team)
 '''
 def process_requests():
@@ -172,14 +177,17 @@ def process_requests():
 def process_request(array):
     print(array)
     if array[0] == 0:
-        if array[4] == 0:
-            my_buildings_list.append(Building(array[1],array[2],array[3],array[4]))
+        if array[4] == 1:
+            my_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
         else:
-            opponent_buildings_list.append(Building(array[1],array[2],array[3],array[4]))
+            opponent_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
     elif array[0] == 1:
-        my_units_list.append(Unit(array[1],array[2],array[3]))
+        if array[4] == 0:
+            my_units_list.append(Unit(array[3],array[1],array[2],array[4]))
+        else:
+            opponent_units_list
     elif array[0] == 2:
-            my_units_list[array[3]].move(array[1],array[2])
+        my_units_list[array[3]].move(array[1],array[2])
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -282,12 +290,16 @@ while running:
             elif unit_is_selected:
                 if event.key == pygame.K_w:
                     process_request((2,0,-1,unit_selected))
+                    threading.Thread(target=send_request,args = ((2,0,-1,unit_selected),))
                 elif event.key == pygame.K_s:
                     process_request((2,0,1,unit_selected))
+                    threading.Thread(target=send_request,args = ((2,0,1,unit_selected),))
                 elif event.key == pygame.K_a:
                     process_request((2,-1,0,unit_selected))
+                    threading.Thread(target=send_request,args = ((2,-1,0,unit_selected),))
                 elif event.key == pygame.K_d:
                     process_request((2,1,0,unit_selected))
+                    threading.Thread(target=send_request,args = ((2,1,0,unit_selected),))
                 elif event.key == pygame.K_b:
                     my_units_list[unit_selected].build()
 
