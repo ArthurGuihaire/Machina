@@ -17,8 +17,8 @@ resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 
 num_resource_types = len(resource_types)
 
-# Print join thingy
-print("ip address: "+str(socket.gethostbyname(socket.gethostname())))
+from requests import get as find_ip
+print(find_ip('https://api64.ipify.org?format=text').text)
 
 # UNIX socket path
 local_socket_path = "/tmp/local_socket"

@@ -7,7 +7,7 @@ import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
 
-option = 0 #int(input("Local (0) or remote (1): "))
+option = int(input("Local (0) or remote (1): "))
 if option == 0:
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     error = True
@@ -21,6 +21,7 @@ if option == 0:
             pygame.time.wait(1000)
 else:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect((input("IP address:"),5000))
 
 client.sendall(pickle.dumps("Client connected"))
 
@@ -79,9 +80,12 @@ class Thing(pygame.sprite.Sprite):
 Units: 1 = builder, 2 = soldier
 '''
 class Unit(Thing):
-    def __init__(self,type,x_loc,y_loc):
+    def __init__(self,type,x_loc,y_loc,team):
         self.image = pygame.Surface((tile_width-100, tile_width-100))
-        self.image.fill((0,255,255))
+        if team == 1:
+            self.image.fill((0,255,255))
+        elif team == 2:
+            self.image.fill((255,0,0))
         rect = self.image.get_rect(topleft=(50+(x_loc-x_disp)*tile_width,50+(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
         if type == 1:
@@ -105,7 +109,7 @@ class Unit(Thing):
     def build(self):
         if self.actions > 0:
             self.actions -= 1
-            process_request((0,self.x,self.y,choose_buildings()))
+            process_request((0,self.x,self.y,choose_buildings(),0))
 
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
@@ -146,7 +150,7 @@ while map_info[x_disp+6][y_disp+4][0] == 4:
     print("Bad start")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
-my_units_list = [Unit(1, x_disp+6, y_disp+4)]
+my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
 
 
 my_buildings_list = []
@@ -168,10 +172,10 @@ def process_requests():
 def process_request(array):
     print(array)
     if array[0] == 0:
-        if array[5] == 0:
-            my_buildings_list.append(Building(array[1],array[2],array[3]))
+        if array[4] == 0:
+            my_buildings_list.append(Building(array[1],array[2],array[3],array[4]))
         else:
-            opponent_buildings_list.append(Building(array[1],array[2],array[3]))
+            opponent_buildings_list.append(Building(array[1],array[2],array[3],array[4]))
     elif array[0] == 1:
         my_units_list.append(Unit(array[1],array[2],array[3]))
     elif array[0] == 2:
@@ -215,7 +219,7 @@ def draw_buildings():
 def choose_buildings():
     pygame.draw.rect(screen,(64,64,96),pygame.Rect(screen_width*3/4,0,screen_width/4,screen_height))
     pygame.draw.line(screen,(0,0,0),(screen_width*3/4,100),(screen_width,100))
-    screen.blit(default_font.render("Buildings",True,(255,255,255)),(screen_width*3/4+30, 100*i+114))
+    screen.blit(default_font.render("Buildings",True,(255,255,255)),(screen_width*3/4+30, 30))
     for i in range(len(types_string)):
         screen.blit(default_font.render(types_string[i],True,(255,255,255)),(screen_width*3/4+30, 100*i+114))
         pygame.draw.line(screen,(0,0,0),(screen_width*3/4, (i+1)*100),(screen_width,(i+1)*100))
