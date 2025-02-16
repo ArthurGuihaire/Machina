@@ -77,10 +77,8 @@ def send_startup_data(sock):
             for i in range(num_resource_types):
                 if random.random() < resource_frequency[biome_type-1][i]:
                     map_tiles[x][y][i+1] = 1
-    import time
-    print(time.time())
+
     sock.recv(1)
-    print(time.time())
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
 
 print("Waiting for connection...")

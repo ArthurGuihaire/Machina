@@ -33,6 +33,7 @@ remote_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 local_server.bind(local_socket_path)  # local
 remote_server.bind(("0.0.0.0", 5000))  # remote
 local_server.listen()
+remote_server.listen()
 
 '''def run_program(program):
     with open(program) as file:
@@ -45,20 +46,24 @@ def send_large_data(sock, data): #ChatGPT code
         sent = sock.send(data[total_sent:])
         total_sent += sent
 
-def handle_client(conn):
+def handle_client(conn, conn2):
     try:
         while True:
             data = conn.recv(1024)
             if not data:
                 break
+            conn2.sendall(data)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
     finally:
         conn.close()
 
-def accept_connection(server):
+def accept_connection(server, multi):
     conn, _ = server.accept()
-    send_startup_data(conn)
+    if multi:
+        threading.Thread(target=send_startup_data, args=(conn,)).start()
+    else:
+        send_startup_data(conn)
     return conn
 
 def send_startup_data(sock):
@@ -83,14 +88,13 @@ def send_startup_data(sock):
             for i in range(num_resource_types):
                 if random.random() < resource_frequency[biome_type-1][i]:
                     map_tiles[x][y][i+1] = 1
-    import time
-    print(time.time())
+
     sock.recv(1)
-    print(time.time())
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
 
 print("Waiting for connection...")
-conn=accept_connection(local_server)
-threading.Thread(target=handle_client, args=(conn,)).start()
-
+local_conn=accept_connection(local_server, True)
+remote_conn=accept_connection(remote_server, False)
 print("Servers are running... Press Ctrl+C to stop.")
+threading.Thread(target=handle_client, args=(local_conn,remote_conn)).start()
+handle_client(remote_conn, local_conn)
