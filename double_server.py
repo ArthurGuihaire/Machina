@@ -31,7 +31,7 @@ remote_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 remote_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 local_server.bind(local_socket_path)  # local
-remote_server.bind(("0.0.0.0", 5000))  # remote
+remote_server.bind(("0.0.0.0", 65432))  # remote
 local_server.listen()
 remote_server.listen()
 

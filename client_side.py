@@ -21,7 +21,7 @@ if option == 0:
             pygame.time.wait(1000)
 else:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((input("IP address:"),5000))
+    client.connect((input("IP address:"),65432))
 
 client.sendall(pickle.dumps("Client connected"))
 
@@ -124,7 +124,6 @@ class Building(Thing):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
 
 def recieve_large(size):
-    sent = 0
     data = bytearray()
     while len(data) < size:
         data.extend(client.recv(size-len(data)))
@@ -138,7 +137,7 @@ print("Sending bytes")
 print(time.time())
 client.send(True.to_bytes(1,'little'))
 array_size = map_width*map_height*(1+num_resource_types)
-map_info = numpy.frombuffer(recieve_large(client, array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
+map_info = numpy.frombuffer(recieve_large(array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
 map_tiles = []
 for x in range(map_width):
     map_tiles.append([])
