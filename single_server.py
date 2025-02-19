@@ -83,6 +83,5 @@ def send_startup_data(sock):
 
 print("Waiting for connection...")
 conn=accept_connection(local_server)
-threading.Thread(target=handle_client, args=(conn,)).start()
-
 print("Servers are running... Press Ctrl+C to stop.")
+threading.Thread(target=handle_client, args=(conn,)).start()

@@ -251,12 +251,10 @@ def draw_units():
         if unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
-            print((unit.x, unit.y))
     for unit in opponent_units_list:
         if tiles_in_sight[unit.x][unit.y] and unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
-            print((unit.x, unit.y))
 
 def draw_buildings():
     for building in my_buildings_list:

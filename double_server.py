@@ -20,9 +20,7 @@ num_resource_types = len(resource_types)
 from requests import get as find_ip
 print(find_ip('https://api64.ipify.org?format=text').text)
 
-# UNIX socket path
 local_socket_path = "/tmp/local_socket"
-# Remove existing UNIX socket file if it exists
 if os.path.exists(local_socket_path):
     os.remove(local_socket_path)
 # Create two servers: one local, one remote
@@ -94,7 +92,7 @@ def send_startup_data(sock):
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
 
 print("Waiting for connection...")
-threading.Thread(target=make_map).start()
+make_map()
 local_conn=accept_connection(local_server, True)
 remote_conn=accept_connection(remote_server, False)
 print("Servers are running... Press Ctrl+C to stop.")
