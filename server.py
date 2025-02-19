@@ -5,7 +5,6 @@ import pickle
 import random
 import numpy
 import math
-import queue
 
 # Game variables to be socket-transfered
 map_width, map_height = 50,50

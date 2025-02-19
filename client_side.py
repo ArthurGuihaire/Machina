@@ -26,11 +26,11 @@ else:
 client.sendall(pickle.dumps("Client connected"))
 
 default_font = pygame.font.Font(None, 72)
-tile_width = 200
 display_info = pygame.display.Info()
 screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.toggle_fullscreen()
+tile_width = int(min(screen_width/12, screen_height/8))
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
 
@@ -40,6 +40,7 @@ draw_width = min(screen_width/map_width, screen_height/map_height)
 
 colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
 colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
+#colors_greyed = [[255,255,255], [255,255,255], [255,255,255], [255,255,255], [255,255,255]]
 types_string = ["Village","Farm","Water Wheel"]
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
@@ -66,15 +67,14 @@ class Tile(pygame.sprite.Sprite):
     def draw(self,x,y,scaled):
         if scaled:
             if tiles_in_sight[x][y]:
-                print(1)
                 screen.blit(self.image_small, (x*draw_width+450, y*draw_width))
             else:
-                screen.blit(self.image_small_greyed, (x*draw_width+450, y*draw_width))
+                screen.blit(self.image_greyed_small, (x*draw_width+450, y*draw_width))
         else:
             if tiles_in_sight[x][y]:
-                screen.blit(self.image, (x*tile_width, y*tile_width))
+                screen.blit(self.image, ((x-x_disp)*tile_width, (y-y_disp)*tile_width))
             else:
-                screen.blit(self.image_greyed, (x*tile_width, y*tile_width))
+                screen.blit(self.image_greyed, ((x-x_disp)*tile_width, (y-y_disp)*tile_width))
 
 class Thing(pygame.sprite.Sprite):
     def __init__(self,type,x_loc,y_loc,rect):
@@ -93,12 +93,12 @@ Units: 1 = builder, 2 = soldier
 '''
 class Unit(Thing):
     def __init__(self,type,x_loc,y_loc,team):
-        self.image = pygame.Surface((tile_width-100, tile_width-100))
+        self.image = pygame.Surface((tile_width/2, tile_width/2))
         if team == 1:
             self.image.fill((0,255,255))
         elif team == 2:
             self.image.fill((255,0,0))
-        rect = self.image.get_rect(topleft=(50+(x_loc-x_disp)*tile_width,50+(y_loc-y_disp)*tile_width))
+        rect = self.image.get_rect(topleft=(tile_width/4+(x_loc-x_disp)*tile_width,tile_width/4+(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
         if type == 1:
             self.moves_per_turn = 2
@@ -106,7 +106,7 @@ class Unit(Thing):
             self.actions = 3
 
     def update_rect(self):
-        self.rect = self.image.get_rect(topleft=(50+(self.x-x_disp)*tile_width,50+(self.y-y_disp)*tile_width))
+        self.rect = self.image.get_rect(topleft=(tile_width/4+(self.x-x_disp)*tile_width,tile_width/4+(self.y-y_disp)*tile_width))
 
     def move(self, move_x, move_y):
         if self.moves > 0: # if has moves left
@@ -125,8 +125,8 @@ class Unit(Thing):
             threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),))
 
     def update_visible(self):
-        for x in range(self.x-unit_sight_range, self.x+unit_sight_range):
-            for y in range(self.y-unit_sight_range, self.y+unit_sight_range):
+        for x in range(self.x-unit_sight_range, self.x+unit_sight_range+1):
+            for y in range(self.y-unit_sight_range, self.y+unit_sight_range+1):
                 if 0 <= x < map_width and 0 <= y < map_height:
                     tiles_in_sight[x][y] = True
 
@@ -179,6 +179,7 @@ while map_info[x_disp+6][y_disp+4][0] == 4:
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
+client.sendall(pickle.dumps([0, x_disp+6, y_disp+4, 1, 2]))
 opponent_units_list = []
 
 
@@ -204,6 +205,7 @@ def process_request(array):
             my_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
         else:
             opponent_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
+            print("it works")
     elif array[0] == 1:
         if array[4] == 0:
             my_units_list.append(Unit(array[3],array[1],array[2],array[4]))
@@ -216,7 +218,7 @@ def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
         for y in range(y_disp, y_disp+tile_disp_y):
             if 0 <= x < map_width and 0 < y < map_height and visible_tiles[x][y] != None:
-                visible_tiles[x][y].draw(x-x_disp, y-y_disp, False)
+                visible_tiles[x][y].draw(x, y, False)
             else:
                 pygame.draw.rect(screen,(64,64,64),pygame.Rect((x-x_disp)*tile_width,(y-y_disp)*tile_width,tile_width,tile_width))
 
@@ -249,10 +251,12 @@ def draw_units():
         if unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
+            print((unit.x, unit.y))
     for unit in opponent_units_list:
         if tiles_in_sight[unit.x][unit.y] and unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
+            print((unit.x, unit.y))
 
 def draw_buildings():
     for building in my_buildings_list:
@@ -282,14 +286,18 @@ def choose_buildings():
         elif event.type == pygame.QUIT:
             break
 
+def update_sight():
+    tiles_in_sight.fill(False)
+    for unit in my_units_list:
+        unit.update_visible()
+    for building in my_buildings_list:
+        building.update_visible()
+
 # Draw the whole map and leave it on the screen for a few seconds
 make_visible(my_units_list[0].x, my_units_list[0].y,3)
 screen.fill((0,0,0))
-pygame.display.flip()
 draw(x_disp, y_disp)
 draw_units()
-pygame.display.flip()
-pygame.display.flip()
 pygame.display.flip()
 
 process_requests_thread = threading.Thread(target=process_requests, daemon=True)
@@ -356,17 +364,11 @@ while running:
                     unit_is_selected = True
                     unit_selected = i
 
-        tiles_in_sight.fill(False)
-        for unit in my_units_list:
-            unit.update_visible()
-        for building in my_buildings_list:
-            building.update_visible()
-
+        update_sight()
         if redraw_map:
             #screen.fill((0,0,0))
             draw(x_disp, y_disp)
             draw_buildings()
             draw_units()
             pygame.display.flip()
-
 pygame.quit()
