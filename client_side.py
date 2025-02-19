@@ -30,7 +30,7 @@ tile_width = 200
 display_info = pygame.display.Info()
 screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((screen_width, screen_height))
-#pygame.display.toggle_fullscreen()
+pygame.display.toggle_fullscreen()
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
 
@@ -39,10 +39,13 @@ print(f"Transferred: ({map_width}, {map_height})")
 draw_width = min(screen_width/map_width, screen_height/map_height)
 
 colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
+colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
 types_string = ["Village","Farm","Water Wheel"]
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
 num_resource_types = len(resource_types)
+building_sight_range = 2
+unit_sight_range = 3
 
 unit_is_selected = False
 unit_selected = 0
@@ -51,18 +54,27 @@ class Tile(pygame.sprite.Sprite):
     def __init__(self,array):
         super().__init__()
         self.image = pygame.Surface((tile_width, tile_width))
-        # Change to instead load corresponding image
         self.type = array[0]
-        self.image.fill(colors[self.type])
+        self.image.fill(colors[self.type]) # Change this to load the image
         self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
+        self.image_greyed = pygame.Surface((tile_width, tile_width))
+        self.image_greyed.fill(colors_greyed[self.type])
+        self.image_greyed_small = pygame.transform.scale(self.image_greyed,(draw_width, draw_width))
         self.rect = self.image.get_rect()
         self.resources = array[1:]
     
     def draw(self,x,y,scaled):
         if scaled:
-            screen.blit(self.image_small, (x*draw_width+450, y*draw_width))
+            if tiles_in_sight[x][y]:
+                print(1)
+                screen.blit(self.image_small, (x*draw_width+450, y*draw_width))
+            else:
+                screen.blit(self.image_small_greyed, (x*draw_width+450, y*draw_width))
         else:
-            screen.blit(self.image, (x*tile_width, y*tile_width))
+            if tiles_in_sight[x][y]:
+                screen.blit(self.image, (x*tile_width, y*tile_width))
+            else:
+                screen.blit(self.image_greyed, (x*tile_width, y*tile_width))
 
 class Thing(pygame.sprite.Sprite):
     def __init__(self,type,x_loc,y_loc,rect):
@@ -98,7 +110,7 @@ class Unit(Thing):
 
     def move(self, move_x, move_y):
         if self.moves > 0: # if has moves left
-            if 0 < self.x+move_x < map_width and 0 < self.y+move_y < map_height: # if not moving off screen
+            if 0 <= self.x+move_x < map_width and 0 <= self.y+move_y < map_height: # if not moving off screen
                 if  map_tiles[self.x+move_x][self.y+move_y].type != 4: # if not moving onto ocean
                     self.moves -= 1
                     self.x += move_x
@@ -112,6 +124,12 @@ class Unit(Thing):
             process_request((0,self.x,self.y,choose_buildings(),1))
             threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),))
 
+    def update_visible(self):
+        for x in range(self.x-unit_sight_range, self.x+unit_sight_range):
+            for y in range(self.y-unit_sight_range, self.y+unit_sight_range):
+                if 0 <= x < map_width and 0 <= y < map_height:
+                    tiles_in_sight[x][y] = True
+
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
         self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
@@ -119,9 +137,18 @@ class Building(Thing):
         super().__init__(type,x_loc,y_loc,rect)
         self.team = team
         if type == 1:
-            pygame.draw.circle(self.image,(255,0,255),self.image.get_rect().center,75)
+            if team == 1:
+                pygame.draw.circle(self.image,(128,128,255),self.image.get_rect().center,75)
+            else:
+                pygame.draw.circle(self.image,(255,128,128),self.image.get_rect().center,75)
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
+
+    def update_visible(self):
+        for x in range(self.x-building_sight_range, self.x+building_sight_range):
+            for y in range(self.y-building_sight_range, self.y+building_sight_range):
+                if 0 <= x < map_width and 0 <= y < map_height:
+                    tiles_in_sight[x][y] = True
 
 def recieve_large(size):
     data = bytearray()
@@ -132,9 +159,6 @@ def recieve_large(size):
 def send_request(request):
     client.sendall(pickle.dumps(request))
 
-import time
-print("Sending bytes")
-print(time.time())
 client.send(True.to_bytes(1,'little'))
 array_size = map_width*map_height*(1+num_resource_types)
 map_info = numpy.frombuffer(recieve_large(array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
@@ -145,6 +169,7 @@ for x in range(map_width):
         map_tiles[x].append(Tile(map_info[x][y]))
 
 visible_tiles = numpy.empty((map_width, map_height), dtype = object)
+tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
 
 # Start location; top-left of screen
 x_disp = random.randint(0, map_width - 12)
@@ -174,7 +199,6 @@ def process_requests():
             process_request(pickle.loads(data))
 
 def process_request(array):
-    print(array)
     if array[0] == 0:
         if array[4] == 1:
             my_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
@@ -211,14 +235,31 @@ def make_visible(x_pos,y_pos,radius):
             if 0 <= x < map_width and 0 <= y < map_height:
                 visible_tiles[x][y] = map_tiles[x][y]
 
+def update_sight(x,y):
+    for building in my_buildings_list:
+        if -building_sight_range <= building.x-x <= building_sight_range and -building_sight_range <= building.y-y <= building_sight_range:
+            return True
+    for unit in my_units_list:
+        if -unit_sight_range <= unit.x-x <= unit_sight_range and -unit_sight_range <= unit.y-y <= unit_sight_range:
+            return True
+    return False
+
 def draw_units():
     for unit in my_units_list:
         if unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
+    for unit in opponent_units_list:
+        if tiles_in_sight[unit.x][unit.y] and unit.is_visible(x_disp, y_disp):
+            unit.update_rect()
+            screen.blit(unit.image, unit.rect)
 
 def draw_buildings():
     for building in my_buildings_list:
+        if building.is_visible(x_disp, y_disp):
+            building.update_rect()
+            screen.blit(building.image, building.rect)
+    for building in opponent_buildings_list:
         if building.is_visible(x_disp, y_disp):
             building.update_rect()
             screen.blit(building.image, building.rect)
@@ -314,6 +355,12 @@ while running:
                 if my_units_list[i].get_collisions(event.pos[0],event.pos[1]):
                     unit_is_selected = True
                     unit_selected = i
+
+        tiles_in_sight.fill(False)
+        for unit in my_units_list:
+            unit.update_visible()
+        for building in my_buildings_list:
+            building.update_visible()
 
         if redraw_map:
             #screen.fill((0,0,0))

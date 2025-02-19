@@ -66,13 +66,11 @@ def accept_connection(server, multi):
         send_startup_data(conn)
     return conn
 
-def send_startup_data(sock):
-    print(pickle.loads(sock.recv(1024)))
-    sock.sendall(pickle.dumps((map_width, map_height)))
+def make_map():
     biomes = []
     for i in range(num_biomes):
         biomes.append((random.randint(0,map_width-1), random.randint(0,map_height-1), int((random.randint(2,8))/2)))
-    
+    global map_tiles
     map_tiles = numpy.zeros((map_width,map_height,1+num_resource_types), dtype=numpy.int8)
     for x in range(map_width):
         for y in range(map_height):
@@ -89,10 +87,14 @@ def send_startup_data(sock):
                 if random.random() < resource_frequency[biome_type-1][i]:
                     map_tiles[x][y][i+1] = 1
 
+def send_startup_data(sock):
+    print(pickle.loads(sock.recv(1024)))
+    sock.sendall(pickle.dumps((map_width, map_height)))
     sock.recv(1)
-    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
+    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
 
 print("Waiting for connection...")
+threading.Thread(target=make_map).start()
 local_conn=accept_connection(local_server, True)
 remote_conn=accept_connection(remote_server, False)
 print("Servers are running... Press Ctrl+C to stop.")
