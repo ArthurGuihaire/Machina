@@ -312,6 +312,9 @@ pygame.display.flip()
 process_requests_thread = threading.Thread(target=process_requests, daemon=True)
 process_requests_thread.start()
 
+send_request(False)
+client.recv(1)
+
 # Game Loop:
 pygame.event.set_blocked(pygame.MOUSEMOTION)
 running = True
