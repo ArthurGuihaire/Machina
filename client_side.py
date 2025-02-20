@@ -188,7 +188,7 @@ while map_info[x_disp+6][y_disp+4][0] == 4:
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
-client.sendall(pickle.dumps([0, x_disp+6, y_disp+4, 1, 2]))
+send_request([0, x_disp+6, y_disp+4, 1, 2])
 opponent_units_list = []
 
 
@@ -313,7 +313,7 @@ pygame.display.flip()
 process_request(pickle.loads(client.recv(1024)))
 process_requests_thread = threading.Thread(target=process_requests, daemon=True)
 send_request(False)
-client.recv(1) # Wait for both players to be loaded in
+client.recv(64) # Wait for both players to be loaded in
 process_requests_thread.start()
 
 # Game Loop:
