@@ -146,7 +146,7 @@ class Unit(Thing):
         self.rect = self.image.get_rect(topleft=(tile_width/4+(self.x-x_disp)*tile_width,tile_width/4+(self.y-y_disp)*tile_width))
 
     def move(self, move_x, move_y):
-        if self.moves > 0 or self.team == 2: # if has moves left
+        if self.moves > 0: # if has moves left
             if 0 <= self.x+move_x < map_width and 0 <= self.y+move_y < map_height: # if not moving off screen
                 if  map_info[self.x+move_x][self.y+move_y][0] != 4: # if not moving onto ocean
                     self.moves -= 1
