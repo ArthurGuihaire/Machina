@@ -8,9 +8,9 @@ import threading
 pygame.init()
 
 option = int(input("Local (0) or remote (1): "))
+error = True # For connecting to the server
 if option == 0:
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    error = True
     while error:
         error = False
         try:
@@ -21,7 +21,14 @@ if option == 0:
             pygame.time.wait(1000)
 else:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((input("IP address: "),65432))
+    while error:
+        error = False
+        try:
+            client.connect((input("IP address: "),65432))
+        except:
+            print("Check port forwarding! Trying again in 1 second")
+            error = True
+            pygame.time.wait(1000)
 
 client.sendall(pickle.dumps("Client connected"))
 
@@ -168,7 +175,8 @@ for x in range(map_width):
     for y in range(map_height):
         map_tiles[x].append(Tile(map_info[x][y]))
 
-visible_tiles = numpy.empty((map_width, map_height), dtype = object)
+discovered_tiles = numpy.empty((map_width, map_height), dtype = bool)
+discovered_tiles.fill(False)
 tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
 
 # Start location; top-left of screen
@@ -220,8 +228,8 @@ def process_request(array):
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
         for y in range(y_disp, y_disp+tile_disp_y):
-            if 0 <= x < map_width and 0 < y < map_height and visible_tiles[x][y] != None:
-                visible_tiles[x][y].draw(x, y, False)
+            if 0 <= x < map_width and 0 < y < map_height and discovered_tiles[x][y]:
+                map_tiles[x][y].draw(x, y, False)
             else:
                 pygame.draw.rect(screen,(64,64,64),pygame.Rect((x-x_disp)*tile_width,(y-y_disp)*tile_width,tile_width,tile_width))
 
@@ -229,16 +237,16 @@ def draw_minimap():
     screen.fill((128,128,128))
     for x in range(map_width):
         for y in range(map_height):
-            if visible_tiles[x][y] == None:
+            if discovered_tiles[x][y]:
                 pygame.draw.rect(screen, (64,64,64), pygame.Rect(x*draw_width+450, y*draw_width, draw_width, draw_width))
             else:
-                visible_tiles[x][y].draw(x,y,True)
+                map_tiles[x][y].draw(x,y,True)
 
 def make_visible(x_pos,y_pos,radius):
     for x in range(x_pos-radius, x_pos+radius+1):
         for y in range(y_pos-radius,y_pos+radius+1):
             if 0 <= x < map_width and 0 <= y < map_height:
-                visible_tiles[x][y] = map_tiles[x][y]
+                discovered_tiles[x][y] = True
 
 def update_sight(x,y):
     for building in my_buildings_list:
@@ -255,7 +263,7 @@ def draw_units():
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
     for unit in opponent_units_list:
-        if tiles_in_sight[unit.x][unit.y] and unit.is_visible(x_disp, y_disp):
+        if tiles_in_sight[unit.x][unit.y] and discovered_tiles[x][y] and unit.is_visible(x_disp, y_disp):
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
 
@@ -265,7 +273,7 @@ def draw_buildings():
             building.update_rect()
             screen.blit(building.image, building.rect)
     for building in opponent_buildings_list:
-        if building.is_visible(x_disp, y_disp):
+        if building.is_visible(x_disp, y_disp) and discovered_tiles[building.x][building.y]:
             building.update_rect()
             screen.blit(building.image, building.rect)
 
