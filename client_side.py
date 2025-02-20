@@ -53,13 +53,18 @@ unit_sight_range = 3
 #endregion
 
 #region Recieve startup data
-ping_packet = bytes(0)
+ping_packet = pickle.dumps("ping")
 map_width, map_height = pickle.loads(client.recv(64))
-client.send(ping_packet)
+print("client recieve 1")
+client.sendall(ping_packet)
+print("client send 2")
 map_info = numpy.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
-client.send(ping_packet)
+print("client recieve 2")
+client.sendall(ping_packet)
+print("client send 3")
 x_disp, y_disp = pickle.loads(client.recv(64))
-client.send(ping_packet)
+print("client recieve 3")
+client.sendall(ping_packet)
 opponent_start = pickle.loads(client.recv(64))
 
 #endregion

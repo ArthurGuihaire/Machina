@@ -71,11 +71,15 @@ def make_map():
                     map_tiles[x][y][i+1] = 1
 
 def send_startup_data(sock):
-    print(pickle.loads(sock.recv(1024)))
+    print(pickle.loads(sock.recv(64)))
+    print("recieve 1")
     sock.sendall(pickle.dumps((map_width, map_height)))
+    print("send 1")
     sock.recv(64)
+    print("recieve 2")
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
     #region Generate Start
+    print("send 2")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8)
     while map_tiles[x_disp+6][y_disp+4][0] == 4:
@@ -83,7 +87,9 @@ def send_startup_data(sock):
         y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
     #endregion
     sock.recv(64)
-    sock.sendall(pickle.dumps(x_disp, y_disp))
+    print("recieve 3")
+    sock.sendall(pickle.dumps((x_disp, y_disp)))
+    print("send 3")
     return (x_disp, y_disp)
 
 def exchange_starts(start1, start2, conn1, conn2):
