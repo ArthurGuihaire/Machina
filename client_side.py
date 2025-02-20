@@ -66,6 +66,7 @@ x_disp, y_disp = pickle.loads(client.recv(64))
 print("client recieve 3")
 client.sendall(ping_packet)
 opponent_start = pickle.loads(client.recv(64))
+print(opponent_start)
 
 #endregion
 
@@ -144,9 +145,9 @@ class Unit(Thing):
         self.rect = self.image.get_rect(topleft=(tile_width/4+(self.x-x_disp)*tile_width,tile_width/4+(self.y-y_disp)*tile_width))
 
     def move(self, move_x, move_y):
-        if self.moves > 0: # if has moves left
+        if self.moves > 0 or self.team == 2: # if has moves left
             if 0 <= self.x+move_x < map_width and 0 <= self.y+move_y < map_height: # if not moving off screen
-                if  map_tiles[self.x+move_x][self.y+move_y].type != 4: # if not moving onto ocean
+                if  map_info[self.x+move_x][self.y+move_y][0] != 4: # if not moving onto ocean
                     self.moves -= 1
                     self.x += move_x
                     self.y += move_y
@@ -196,11 +197,12 @@ discovered_tiles.fill(False)
 tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
 
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
-opponent_units_list = [Unit(1, opponent_start[0], opponent_start[1], 2)]
-
+opponent_units_list = [Unit(1, opponent_start[0]+6, opponent_start[1]+4, 2)]
+print(opponent_units_list[0].x)
+print(opponent_units_list[0].y)
 
 my_buildings_list = []
-opponent_buildings_list =[]
+opponent_buildings_list = []
 
 '''Processing request(
 new building (0) new unit (1) move unit (2)
@@ -216,7 +218,6 @@ def process_requests():
             process_request(pickle.loads(data))
 
 def process_request(array):
-    print(array)
     if array[0] == 0:
         if array[4] == 1:
             my_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
@@ -231,7 +232,9 @@ def process_request(array):
         if array[4] == 1:
             my_units_list[array[3]].move(array[1],array[2])
         elif array[4] == 2:
+            print("Old position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
             opponent_units_list[array[3]].move(array[1],array[2])
+            print("New position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -387,4 +390,6 @@ while running:
             draw_buildings()
             draw_units()
             pygame.display.flip()
+
+print((opponent_units_list[0].x,opponent_units_list[0].y))
 pygame.quit()

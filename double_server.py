@@ -110,7 +110,7 @@ start2 = send_startup_data(remote_conn)
 print("Servers are running... Press Ctrl+C to stop.")
 
 synchronize(local_conn, remote_conn)
-exchange_starts(local_conn, remote_conn, start1, start2)
+exchange_starts(start1, start2, local_conn, remote_conn)
 
 threading.Thread(target=handle_client, args=(local_conn,remote_conn)).start()
 handle_client(remote_conn, local_conn)
