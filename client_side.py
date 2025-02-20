@@ -130,6 +130,7 @@ Units: 1 = builder, 2 = soldier
 class Unit(Thing):
     def __init__(self,type,x_loc,y_loc,team):
         self.image = pygame.Surface((tile_width/2, tile_width/2))
+        self.team = team
         if team == 1:
             self.image.fill((0,255,255))
         elif team == 2:
@@ -205,7 +206,7 @@ my_buildings_list = []
 opponent_buildings_list = []
 
 '''Processing request(
-new building (0) new unit (1) move unit (2)
+new building (0) new unit (1) move unit (2) pass turn (3)
 x,
 y,
 index/type
@@ -235,6 +236,9 @@ def process_request(array):
             print("Old position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
             opponent_units_list[array[3]].move(array[1],array[2])
             print("New position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
+    elif array[0] == 3:
+        for unit in opponent_units_list:
+            unit.moves = unit.moves_per_turn
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -353,20 +357,21 @@ while running:
                 turn_running = False
                 for unit in my_units_list:
                     unit.moves = unit.moves_per_turn
+                send_request((3,))
 
             elif unit_is_selected:
                 if event.key == pygame.K_w:
                     process_request((2,0,-1,unit_selected,1))
-                    threading.Thread(target=send_request,args = ((2,0,-1,unit_selected,2),)).start()
+                    send_request((2,0,-1,unit_selected,2))
                 elif event.key == pygame.K_s:
                     process_request((2,0,1,unit_selected,1))
-                    threading.Thread(target=send_request,args = ((2,0,1,unit_selected,2),)).start()
+                    send_request((2,0,1,unit_selected,2))
                 elif event.key == pygame.K_a:
                     process_request((2,-1,0,unit_selected,1))
-                    threading.Thread(target=send_request,args = ((2,-1,0,unit_selected,2),)).start()
+                    send_request((2,-1,0,unit_selected,2))
                 elif event.key == pygame.K_d:
                     process_request((2,1,0,unit_selected,1))
-                    threading.Thread(target=send_request,args = ((2,1,0,unit_selected,2),)).start()
+                    send_request((2,1,0,unit_selected,2))
                 elif event.key == pygame.K_b:
                     my_units_list[unit_selected].build()
 
