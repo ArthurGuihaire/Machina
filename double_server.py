@@ -33,6 +33,8 @@ remote_server.bind(("0.0.0.0", 65432))  # remote
 local_server.listen()
 remote_server.listen()
 
+ping_packet = pickle.dumps('ping')
+
 def handle_client(conn, conn2):
     try:
         while True:
@@ -40,6 +42,7 @@ def handle_client(conn, conn2):
             if not data:
                 break
             conn2.sendall(data)
+            conn.send(ping_packet)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
     finally:

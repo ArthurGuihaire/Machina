@@ -1,20 +1,18 @@
 import pygame
 import numpy
-import random
+import queue
 import socket
 import pickle
 import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
+req_queue = queue.Queue()
 
 def recieve_large(size):
     data = bytearray()
     while len(data) < size:
         data.extend(client.recv(size-len(data)))
     return data
-
-def send_request(request):
-    client.sendall(pickle.dumps(request))
 
 option = int(input("Local (0) or remote (1): "))
 error = True # For connecting to the server
@@ -56,18 +54,17 @@ unit_sight_range = 3
 ping_packet = pickle.dumps("ping")
 map_width, map_height = pickle.loads(client.recv(64))
 print("client recieve 1")
-client.sendall(ping_packet)
+client.send(ping_packet)
 print("client send 2")
 map_info = numpy.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
 print("client recieve 2")
-client.sendall(ping_packet)
+client.send(ping_packet)
 print("client send 3")
 x_disp, y_disp = pickle.loads(client.recv(64))
 print("client recieve 3")
-client.sendall(ping_packet)
+client.send(ping_packet)
 opponent_start = pickle.loads(client.recv(64))
 print(opponent_start)
-
 #endregion
 
 default_font = pygame.font.Font(None, 72)
@@ -158,8 +155,9 @@ class Unit(Thing):
     def build(self):
         if self.actions > 0:
             self.actions -= 1
-            process_request((0,self.x,self.y,choose_buildings(),1))
-            threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),)).start()
+            building_option = choose_buildings()
+            process_request((0,self.x,self.y,building_option,1))
+            req_queue.put((0,self.x,self.y,building_option,2))
 
     def update_visible(self):
         for x in range(self.x-unit_sight_range, self.x+unit_sight_range+1):
@@ -212,6 +210,12 @@ y,
 index/type
 team)
 '''
+def send_requests():
+    while True:
+        request = req_queue.get()
+        client.sendall(pickle.dumps(request))
+        client.recv(64) # Ping before sending another request
+
 def process_requests():
     while True:
         data = client.recv(80)
@@ -324,8 +328,8 @@ draw(x_disp, y_disp)
 draw_units()
 pygame.display.flip()
 
-process_requests_thread = threading.Thread(target=process_requests, daemon=True)
-process_requests_thread.start()
+threading.Thread(target=process_requests, daemon=True).start()
+threading.Thread(target=send_requests, daemon=True).start()
 
 # Game Loop:
 running = True
@@ -357,21 +361,21 @@ while running:
                 turn_running = False
                 for unit in my_units_list:
                     unit.moves = unit.moves_per_turn
-                send_request((3,))
+                req_queue.put((3,))
 
             elif unit_is_selected:
                 if event.key == pygame.K_w:
                     process_request((2,0,-1,unit_selected,1))
-                    send_request((2,0,-1,unit_selected,2))
+                    req_queue.put((2,0,-1,unit_selected,2))
                 elif event.key == pygame.K_s:
                     process_request((2,0,1,unit_selected,1))
-                    send_request((2,0,1,unit_selected,2))
+                    req_queue.put((2,0,1,unit_selected,2))
                 elif event.key == pygame.K_a:
                     process_request((2,-1,0,unit_selected,1))
-                    send_request((2,-1,0,unit_selected,2))
+                    req_queue.put((2,-1,0,unit_selected,2))
                 elif event.key == pygame.K_d:
                     process_request((2,1,0,unit_selected,1))
-                    send_request((2,1,0,unit_selected,2))
+                    req_queue.put((2,1,0,unit_selected,2))
                 elif event.key == pygame.K_b:
                     my_units_list[unit_selected].build()
 
