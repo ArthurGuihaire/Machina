@@ -33,17 +33,6 @@ remote_server.bind(("0.0.0.0", 65432))  # remote
 local_server.listen()
 remote_server.listen()
 
-'''def run_program(program):
-    with open(program) as file:
-        exec(file.read())
-threading.Thread(target=run_program, args=('client_side.py',)).start()'''
-
-def send_large_data(sock, data): #ChatGPT code
-    total_sent = 0
-    while total_sent < len(data):
-        sent = sock.send(data[total_sent:])
-        total_sent += sent
-
 def handle_client(conn, conn2):
     try:
         while True:
@@ -85,7 +74,7 @@ def make_map():
 def send_startup_data(sock):
     print(pickle.loads(sock.recv(1024)))
     sock.sendall(pickle.dumps((map_width, map_height)))
-    sock.recv(1)
+    sock.recv(64)
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
 
 print("Waiting for connection...")

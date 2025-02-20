@@ -37,6 +37,8 @@ display_info = pygame.display.Info()
 screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.toggle_fullscreen()
+pygame.event.set_blocked(pygame.MOUSEMOTION)
+
 tile_width = int(min(screen_width/12, screen_height/8))
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
@@ -47,7 +49,6 @@ draw_width = min(screen_width/map_width, screen_height/map_height)
 
 colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
 colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
-#colors_greyed = [[255,255,255], [255,255,255], [255,255,255], [255,255,255], [255,255,255]]
 types_string = ["Village","Farm","Water Wheel"]
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
@@ -166,7 +167,7 @@ def recieve_large(size):
 def send_request(request):
     client.sendall(pickle.dumps(request))
 
-client.send(True.to_bytes(1,'little'))
+client.send(pickle.dumps(None))
 array_size = map_width*map_height*(1+num_resource_types)
 map_info = numpy.frombuffer(recieve_large(array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
 map_tiles = []
@@ -203,7 +204,7 @@ team)
 '''
 def process_requests():
     while True:
-        data = client.recv(1024)
+        data = client.recv(80)
         if data:
             process_request(pickle.loads(data))
 
@@ -238,9 +239,9 @@ def draw_minimap():
     for x in range(map_width):
         for y in range(map_height):
             if discovered_tiles[x][y]:
-                pygame.draw.rect(screen, (64,64,64), pygame.Rect(x*draw_width+450, y*draw_width, draw_width, draw_width))
-            else:
                 map_tiles[x][y].draw(x,y,True)
+            else:
+                pygame.draw.rect(screen, (64,64,64), pygame.Rect(x*draw_width+450, y*draw_width, draw_width, draw_width))
 
 def make_visible(x_pos,y_pos,radius):
     for x in range(x_pos-radius, x_pos+radius+1):
@@ -309,14 +310,13 @@ draw(x_disp, y_disp)
 draw_units()
 pygame.display.flip()
 
+process_request(pickle.loads(client.recv(1024)))
 process_requests_thread = threading.Thread(target=process_requests, daemon=True)
+send_request(False)
+client.recv(1) # Wait for both players to be loaded in
 process_requests_thread.start()
 
-send_request(False)
-client.recv(1)
-
 # Game Loop:
-pygame.event.set_blocked(pygame.MOUSEMOTION)
 running = True
 while running:
     turn_running = True
