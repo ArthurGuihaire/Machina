@@ -21,7 +21,7 @@ if option == 0:
             pygame.time.wait(1000)
 else:
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((input("IP address:"),65432))
+    client.connect((input("IP address: "),65432))
 
 client.sendall(pickle.dumps("Client connected"))
 
@@ -122,7 +122,7 @@ class Unit(Thing):
         if self.actions > 0:
             self.actions -= 1
             process_request((0,self.x,self.y,choose_buildings(),1))
-            threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),))
+            threading.Thread(target=send_request,args = ((0,self.x,self.y,choose_buildings(),1),)).start()
 
     def update_visible(self):
         for x in range(self.x-unit_sight_range, self.x+unit_sight_range+1):
@@ -200,19 +200,22 @@ def process_requests():
             process_request(pickle.loads(data))
 
 def process_request(array):
+    print(array)
     if array[0] == 0:
         if array[4] == 1:
             my_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
         else:
             opponent_buildings_list.append(Building(array[3],array[1],array[2],array[4]))
-            print("it works")
     elif array[0] == 1:
         if array[4] == 0:
             my_units_list.append(Unit(array[3],array[1],array[2],array[4]))
         else:
             opponent_units_list
     elif array[0] == 2:
-        my_units_list[array[3]].move(array[1],array[2])
+        if array[4] == 1:
+            my_units_list[array[3]].move(array[1],array[2])
+        elif array[4] == 2:
+            opponent_units_list[array[3]].move(array[1],array[2])
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
@@ -335,17 +338,17 @@ while running:
 
             elif unit_is_selected:
                 if event.key == pygame.K_w:
-                    process_request((2,0,-1,unit_selected))
-                    threading.Thread(target=send_request,args = ((2,0,-1,unit_selected),))
+                    process_request((2,0,-1,unit_selected,1))
+                    threading.Thread(target=send_request,args = ((2,0,-1,unit_selected,2),)).start()
                 elif event.key == pygame.K_s:
-                    process_request((2,0,1,unit_selected))
-                    threading.Thread(target=send_request,args = ((2,0,1,unit_selected),))
+                    process_request((2,0,1,unit_selected,1))
+                    threading.Thread(target=send_request,args = ((2,0,1,unit_selected,2),)).start()
                 elif event.key == pygame.K_a:
-                    process_request((2,-1,0,unit_selected))
-                    threading.Thread(target=send_request,args = ((2,-1,0,unit_selected),))
+                    process_request((2,-1,0,unit_selected,1))
+                    threading.Thread(target=send_request,args = ((2,-1,0,unit_selected,2),)).start()
                 elif event.key == pygame.K_d:
-                    process_request((2,1,0,unit_selected))
-                    threading.Thread(target=send_request,args = ((2,1,0,unit_selected),))
+                    process_request((2,1,0,unit_selected,1))
+                    threading.Thread(target=send_request,args = ((2,1,0,unit_selected,2),)).start()
                 elif event.key == pygame.K_b:
                     my_units_list[unit_selected].build()
 
@@ -364,7 +367,7 @@ while running:
 
         update_sight()
         if redraw_map:
-            #screen.fill((0,0,0))
+            screen.fill((0,0,0))
             draw(x_disp, y_disp)
             draw_buildings()
             draw_units()

@@ -56,12 +56,9 @@ def handle_client(conn, conn2):
     finally:
         conn.close()
 
-def accept_connection(server, multi):
+def accept_connection(server):
     conn, _ = server.accept()
-    if multi:
-        threading.Thread(target=send_startup_data, args=(conn,)).start()
-    else:
-        send_startup_data(conn)
+    send_startup_data(conn)
     return conn
 
 def make_map():
@@ -93,8 +90,9 @@ def send_startup_data(sock):
 
 print("Waiting for connection...")
 make_map()
-local_conn=accept_connection(local_server, True)
-remote_conn=accept_connection(remote_server, False)
+local_conn=accept_connection(local_server)
+print("Waiting for another connection...")
+remote_conn=accept_connection(remote_server)
 print("Servers are running... Press Ctrl+C to stop.")
 threading.Thread(target=handle_client, args=(local_conn,remote_conn)).start()
 handle_client(remote_conn, local_conn)
