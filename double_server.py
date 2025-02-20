@@ -47,7 +47,6 @@ def handle_client(conn, conn2):
 
 def accept_connection(server):
     conn, _ = server.accept()
-    send_startup_data(conn)
     return conn
 
 def make_map():
@@ -76,12 +75,36 @@ def send_startup_data(sock):
     sock.sendall(pickle.dumps((map_width, map_height)))
     sock.recv(64)
     sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
+    #region Generate Start
+    x_disp = random.randint(0, map_width - 12)
+    y_disp = random.randint(0, map_height - 8)
+    while map_tiles[x_disp+6][y_disp+4][0] == 4:
+        x_disp = random.randint(0, map_width - 12)
+        y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
+    #endregion
+    sock.recv(64)
+    sock.sendall(pickle.dumps(x_disp, y_disp))
+    return (x_disp, y_disp)
+
+def exchange_starts(start1, start2, conn1, conn2):
+    conn1.sendall(pickle.dumps(start2))
+    conn2.sendall(pickle.dumps(start1))
+
+def synchronize(conn1, conn2):
+    conn1.recv(64)
+    conn2.recv(64)
 
 print("Waiting for connection...")
 make_map()
 local_conn=accept_connection(local_server)
+start1 = send_startup_data(local_conn)
 print("Waiting for another connection...")
 remote_conn=accept_connection(remote_server)
+start2 = send_startup_data(remote_conn)
 print("Servers are running... Press Ctrl+C to stop.")
+
+synchronize(local_conn, remote_conn)
+exchange_starts(local_conn, remote_conn, start1, start2)
+
 threading.Thread(target=handle_client, args=(local_conn,remote_conn)).start()
 handle_client(remote_conn, local_conn)

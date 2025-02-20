@@ -7,6 +7,15 @@ import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
 
+def recieve_large(size):
+    data = bytearray()
+    while len(data) < size:
+        data.extend(client.recv(size-len(data)))
+    return data
+
+def send_request(request):
+    client.sendall(pickle.dumps(request))
+
 option = int(input("Local (0) or remote (1): "))
 error = True # For connecting to the server
 if option == 0:
@@ -32,6 +41,29 @@ else:
 
 client.sendall(pickle.dumps("Client connected"))
 
+#region Initialize
+colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
+colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
+types_string = ["Village","Farm","Water Wheel"]
+resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
+resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
+num_resource_types = len(resource_types)
+building_sight_range = 2
+unit_sight_range = 3
+#endregion
+
+#region Recieve startup data
+ping_packet = bytes(0)
+map_width, map_height = pickle.loads(client.recv(64))
+client.send(ping_packet)
+map_info = numpy.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
+client.send(ping_packet)
+x_disp, y_disp = pickle.loads(client.recv(64))
+client.send(ping_packet)
+opponent_start = pickle.loads(client.recv(64))
+
+#endregion
+
 default_font = pygame.font.Font(None, 72)
 display_info = pygame.display.Info()
 screen_width, screen_height = display_info.current_w, display_info.current_h
@@ -43,18 +75,8 @@ tile_width = int(min(screen_width/12, screen_height/8))
 tile_disp_x = int(screen_width/tile_width)
 tile_disp_y = int(screen_height/tile_width)
 
-map_width, map_height = pickle.loads(client.recv(56))
 print(f"Transferred: ({map_width}, {map_height})")
 draw_width = min(screen_width/map_width, screen_height/map_height)
-
-colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
-colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
-types_string = ["Village","Farm","Water Wheel"]
-resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
-resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
-num_resource_types = len(resource_types)
-building_sight_range = 2
-unit_sight_range = 3
 
 unit_is_selected = False
 unit_selected = 0
@@ -158,18 +180,6 @@ class Building(Thing):
                 if 0 <= x < map_width and 0 <= y < map_height:
                     tiles_in_sight[x][y] = True
 
-def recieve_large(size):
-    data = bytearray()
-    while len(data) < size:
-        data.extend(client.recv(size-len(data)))
-    return data
-
-def send_request(request):
-    client.sendall(pickle.dumps(request))
-
-client.send(pickle.dumps(None))
-array_size = map_width*map_height*(1+num_resource_types)
-map_info = numpy.frombuffer(recieve_large(array_size), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
 map_tiles = []
 for x in range(map_width):
     map_tiles.append([])
@@ -180,16 +190,8 @@ discovered_tiles = numpy.empty((map_width, map_height), dtype = bool)
 discovered_tiles.fill(False)
 tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
 
-# Start location; top-left of screen
-x_disp = random.randint(0, map_width - 12)
-y_disp = random.randint(0, map_height - 8)
-while map_info[x_disp+6][y_disp+4][0] == 4:
-    print("Bad start")
-    x_disp = random.randint(0, map_width - 12)
-    y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
-send_request([0, x_disp+6, y_disp+4, 1, 2])
-opponent_units_list = []
+opponent_units_list = [Unit(1, opponent_start[0], opponent_start[1], 2)]
 
 
 my_buildings_list = []
@@ -310,10 +312,7 @@ draw(x_disp, y_disp)
 draw_units()
 pygame.display.flip()
 
-process_request(pickle.loads(client.recv(1024)))
 process_requests_thread = threading.Thread(target=process_requests, daemon=True)
-send_request(False)
-client.recv(64) # Wait for both players to be loaded in
 process_requests_thread.start()
 
 # Game Loop:
