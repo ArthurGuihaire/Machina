@@ -1,5 +1,4 @@
 import socket
-import threading
 import os
 import pickle
 import random
@@ -17,27 +16,19 @@ resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 
 num_resource_types = len(resource_types)
 
-# UNIX socket path
+from requests import get as find_ip
+print(find_ip('https://api64.ipify.org?format=text').text)
+
 local_socket_path = "/tmp/local_socket"
-# Remove existing UNIX socket file if it exists
 if os.path.exists(local_socket_path):
     os.remove(local_socket_path)
-# Create two servers: one local, one remote
+# Create local server
 local_server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 local_server.bind(local_socket_path)  # local
 local_server.listen()
 
-'''def run_program(program):
-    with open(program) as file:
-        exec(file.read())
-threading.Thread(target=run_program, args=('client_side.py',)).start()'''
-
-def send_large_data(sock, data): #ChatGPT code
-    total_sent = 0
-    while total_sent < len(data):
-        sent = sock.send(data[total_sent:])
-        total_sent += sent
+ping_packet = pickle.dumps('ping')
 
 def handle_client(conn):
     try:
@@ -45,6 +36,7 @@ def handle_client(conn):
             data = conn.recv(1024)
             if not data:
                 break
+            conn.send(ping_packet)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
     finally:
@@ -52,16 +44,13 @@ def handle_client(conn):
 
 def accept_connection(server):
     conn, _ = server.accept()
-    send_startup_data(conn)
     return conn
 
-def send_startup_data(sock):
-    print(pickle.loads(sock.recv(1024)))
-    sock.sendall(pickle.dumps((map_width, map_height)))
+def make_map():
     biomes = []
     for i in range(num_biomes):
         biomes.append((random.randint(0,map_width-1), random.randint(0,map_height-1), int((random.randint(2,8))/2)))
-    
+    global map_tiles
     map_tiles = numpy.zeros((map_width,map_height,1+num_resource_types), dtype=numpy.int8)
     for x in range(map_width):
         for y in range(map_height):
@@ -78,10 +67,41 @@ def send_startup_data(sock):
                 if random.random() < resource_frequency[biome_type-1][i]:
                     map_tiles[x][y][i+1] = 1
 
-    sock.recv(1)
-    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array  
+def send_startup_data(sock):
+    print(pickle.loads(sock.recv(64)))
+    print("recieve 1")
+    sock.sendall(pickle.dumps((map_width, map_height)))
+    print("send 1")
+    sock.recv(64)
+    print("recieve 2")
+    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
+    #region Generate Start
+    print("send 2")
+    x_disp = random.randint(0, map_width - 12)
+    y_disp = random.randint(0, map_height - 8)
+    while map_tiles[x_disp+6][y_disp+4][0] == 4:
+        x_disp = random.randint(0, map_width - 12)
+        y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
+    #endregion
+    sock.recv(64)
+    print("recieve 3")
+    sock.sendall(pickle.dumps((x_disp, y_disp)))
+    print("send 3")
+    return (x_disp, y_disp)
+
+def exchange_starts(start1, start2, conn1, conn2):
+    conn1.sendall(pickle.dumps(start2))
+    conn2.sendall(pickle.dumps(start1))
+
+def synchronize(conn1, conn2):
+    conn1.recv(64)
+    conn2.recv(64)
 
 print("Waiting for connection...")
-conn=accept_connection(local_server)
+make_map()
+local_conn=accept_connection(local_server)
+send_startup_data(local_conn)
+print("Waiting for another connection...")
 print("Servers are running... Press Ctrl+C to stop.")
-threading.Thread(target=handle_client, args=(conn,)).start()
+
+handle_client(local_conn)

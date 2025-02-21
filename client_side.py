@@ -44,7 +44,7 @@ colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
 colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
 types_string = ["Village","Farm","Water Wheel"]
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
-resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
+resource_colors = [(128,128,255),(255,255,0),(192,192,128),(128,128,128),(255,128,0),(32,0,64)]
 num_resource_types = len(resource_types)
 building_sight_range = 2
 unit_sight_range = 3
@@ -87,15 +87,19 @@ unit_selected = 0
 class Tile(pygame.sprite.Sprite):
     def __init__(self,array):
         super().__init__()
-        self.image = pygame.Surface((tile_width, tile_width))
         self.type = array[0]
-        self.image.fill(colors[self.type]) # Change this to load the image
-        self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
+        self.image = pygame.Surface((tile_width, tile_width))
+        self.image.fill(colors[self.type])
         self.image_greyed = pygame.Surface((tile_width, tile_width))
         self.image_greyed.fill(colors_greyed[self.type])
+        self.resources = array[1:]
+        for i in range(len(self.resources)):
+            if self.resources[i]:
+                pygame.draw.rect(self.image, resource_colors[i], pygame.Rect(20*i, 0, 20, 20))
+                pygame.draw.rect(self.image_greyed, resource_colors[i], pygame.Rect(20*i, 0, 20, 20))
+        self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
         self.image_greyed_small = pygame.transform.scale(self.image_greyed,(draw_width, draw_width))
         self.rect = self.image.get_rect()
-        self.resources = array[1:]
     
     def draw(self,x,y,scaled):
         if scaled:
