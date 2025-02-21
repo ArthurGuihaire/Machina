@@ -211,14 +211,21 @@ y,
 index/type
 team)
 '''
+server_ready = True
 def send_request():
     client.sendall(pickle.dumps(req_queue.get()))
+    global server_ready
+    server_ready = False
 
 def process_requests():
     while True:
         data = client.recv(80)
         if data == ping_packet:
-            threading.Thread(target=send_request)
+            if req_queue.empty():
+                global server_ready
+                server_ready = True
+            else:
+                send_request()
         else:
             process_request(pickle.loads(data))
 
@@ -378,7 +385,8 @@ while running:
                     req_queue.put((2,1,0,unit_selected,2))
                 elif event.key == pygame.K_b:
                     my_units_list[unit_selected].build()
-
+                if server_ready and not req_queue.empty():
+                    send_request()
                 if redraw_map:
                     make_visible(my_units_list[unit_selected].x,my_units_list[unit_selected].y,3)
         elif event.type == pygame.QUIT:
