@@ -185,6 +185,7 @@ class Building(Thing):
                 if 0 <= x < map_width and 0 <= y < map_height:
                     tiles_in_sight[x][y] = True
 
+#region Load map and units
 map_tiles = []
 for x in range(map_width):
     map_tiles.append([])
@@ -202,7 +203,7 @@ print(opponent_units_list[0].y)
 
 my_buildings_list = []
 opponent_buildings_list = []
-
+#endregion
 '''Processing request(
 new building (0) new unit (1) move unit (2) pass turn (3)
 x,
@@ -210,16 +211,15 @@ y,
 index/type
 team)
 '''
-def send_requests():
-    while True:
-        request = req_queue.get()
-        client.sendall(pickle.dumps(request))
-        client.recv(64) # Ping before sending another request
+def send_request():
+    client.sendall(pickle.dumps(req_queue.get()))
 
 def process_requests():
     while True:
         data = client.recv(80)
-        if data:
+        if data == ping_packet:
+            threading.Thread(target=send_request)
+        else:
             process_request(pickle.loads(data))
 
 def process_request(array):
@@ -329,7 +329,7 @@ draw_units()
 pygame.display.flip()
 
 threading.Thread(target=process_requests, daemon=True).start()
-threading.Thread(target=send_requests, daemon=True).start()
+#threading.Thread(target=send_requests, daemon=True).start()
 
 # Game Loop:
 running = True
