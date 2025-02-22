@@ -7,6 +7,7 @@ import threading
 # CHANGE CURRENT PLAYER BASED ON CONNECTION!!
 pygame.init()
 req_queue = queue.Queue()
+recv_queue = queue.Queue()
 
 def recieve_large(size):
     data = bytearray()
@@ -221,7 +222,7 @@ def send_request():
     global server_ready
     server_ready = False
 
-def process_requests():
+def manage_requests():
     while True:
         data = client.recv(80)
         if data == ping_packet:
@@ -231,7 +232,12 @@ def process_requests():
             else:
                 send_request()
         else:
-            process_request(pickle.loads(data))
+            recv_queue.put(data)
+
+def process_requests():
+    while True:
+        data = recv_queue.get()
+        process_request(pickle.loads(data))
 
 def process_request(array):
     if array[0] == 0:
