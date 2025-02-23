@@ -86,10 +86,17 @@ draw_width = min(screen_width/map_width, screen_height/map_height)
 unit_is_selected = False
 unit_selected = 0
 
-images = [
-pygame.image.load("textures/village.png"),
-pygame.image.load("textures/farm.png"),
-pygame.image.load("textures/water_wheel.png"),
+building_images = [
+pygame.image.load("textures/buildings/PlainsVillage1.png"),
+pygame.image.load("textures/buildings/farm.png"),
+pygame.image.load("textures/buildings/water_wheel.png"),
+]
+
+resource_textures = [
+pygame.image.load("textures/resources/water.png"),
+pygame.image.load("textures/resources/food.png"),
+pygame.image.load("textures/resources/wood.png"),
+pygame.image.load("textures/resources/copper.png"),
 ]
 
 class Tile(pygame.sprite.Sprite):
@@ -149,7 +156,7 @@ class Unit(Thing):
         if type == 1:
             self.moves_per_turn = 2
             self.moves = 2
-            self.actions = 3
+            self.actions = 65536
 
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(tile_width/4+(self.x-x_disp)*tile_width,tile_width/4+(self.y-y_disp)*tile_width))
@@ -188,12 +195,12 @@ class Unit(Thing):
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
         #self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
-        self.image = pygame.transform.scale(images[type-1], (tile_width-50, tile_width-50))
-        rect = self.image.get_rect(topleft=(25+(x_loc-x_disp)*tile_width,25+(y_loc-y_disp)*tile_width))
+        self.image = pygame.transform.scale(building_images[type-1], (tile_width, tile_width))
+        rect = self.image.get_rect(topleft=((x_loc-x_disp)*tile_width,(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
         self.team = team
     def update_rect(self):
-        self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
+        self.rect = self.image.get_rect(topleft=((self.x-x_disp)*tile_width,(self.y-y_disp)*tile_width))
 
     def update_visible(self):
         for x in range(self.x-building_sight_range, self.x+building_sight_range):
