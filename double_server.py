@@ -7,7 +7,7 @@ import numpy
 import math
 
 # Game variables to be socket-transfered
-map_width, map_height = 50,50
+map_width, map_height = 20,20
 num_biomes = 20
 # biome types: 1 = plains, 2 = tundra, 3 = desert, 4 = ocean
 ocean_scale_factor = 0.7 # Divides size by 0.7 so bigger

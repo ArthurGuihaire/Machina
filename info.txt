@@ -1,0 +1,8 @@
+Buildings
+["Village","Farm","Water Wheel"]
+
+Biomes
+[plains, tundra, desert, ocean]
+
+Resources
+["Water", "Food", "Wood", "Stone", "Copper", "Oil"]

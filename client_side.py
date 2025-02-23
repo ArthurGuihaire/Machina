@@ -42,10 +42,17 @@ client.sendall(pickle.dumps("Client connected"))
 #region Initialize
 colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
 colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
-types_string = ["Village","Farm","Water Wheel"]
+types_string = ["Village","Farm","Water Wheel","Lumber mill"]
+build_cost = numpy.array([[0,0,5,0,0,0],
+[0,0,5,0,0,0],
+[0,0,8,0,0,0],
+[0,0,5,0,0,0],
+], dtype=numpy.int16)
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
-resource_colors = [(128,128,255),(255,255,0),(128,128,128),(192,192,128)]
+resource_colors = [(128,128,255),(255,255,0),(192,192,128),(128,128,128),(255,128,0),(32,0,64)]
 num_resource_types = len(resource_types)
+resources = numpy.zeros((num_resource_types),dtype=numpy.int16)
+resources[2] = 15
 building_sight_range = 2
 unit_sight_range = 3
 #endregion
@@ -53,15 +60,10 @@ unit_sight_range = 3
 #region Recieve startup data
 ping_packet = pickle.dumps("ping")
 map_width, map_height = pickle.loads(client.recv(64))
-print("client recieve 1")
 client.send(ping_packet)
-print("client send 2")
 map_info = numpy.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
-print("client recieve 2")
 client.send(ping_packet)
-print("client send 3")
 x_disp, y_disp = pickle.loads(client.recv(64))
-print("client recieve 3")
 client.send(ping_packet)
 opponent_start = pickle.loads(client.recv(64))
 print(opponent_start)
@@ -71,7 +73,7 @@ default_font = pygame.font.Font(None, 72)
 display_info = pygame.display.Info()
 screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.toggle_fullscreen()
+#pygame.display.toggle_fullscreen()
 pygame.event.set_blocked(pygame.MOUSEMOTION)
 
 tile_width = int(min(screen_width/12, screen_height/8))
@@ -84,18 +86,28 @@ draw_width = min(screen_width/map_width, screen_height/map_height)
 unit_is_selected = False
 unit_selected = 0
 
+images = [
+pygame.image.load("textures/village.png"),
+pygame.image.load("textures/farm.png"),
+pygame.image.load("textures/water_wheel.png"),
+]
+
 class Tile(pygame.sprite.Sprite):
     def __init__(self,array):
         super().__init__()
-        self.image = pygame.Surface((tile_width, tile_width))
         self.type = array[0]
-        self.image.fill(colors[self.type]) # Change this to load the image
-        self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
+        self.image = pygame.Surface((tile_width, tile_width))
+        self.image.fill(colors[self.type])
         self.image_greyed = pygame.Surface((tile_width, tile_width))
         self.image_greyed.fill(colors_greyed[self.type])
+        self.resources = array[1:]
+        for i in range(len(self.resources)):
+            if self.resources[i]:
+                pygame.draw.rect(self.image, resource_colors[i], pygame.Rect(20*i, 0, 20, 20))
+                pygame.draw.rect(self.image_greyed, resource_colors[i], pygame.Rect(20*i, 0, 20, 20))
+        self.image_small = pygame.transform.scale(self.image,(draw_width, draw_width))
         self.image_greyed_small = pygame.transform.scale(self.image_greyed,(draw_width, draw_width))
         self.rect = self.image.get_rect()
-        self.resources = array[1:]
     
     def draw(self,x,y,scaled):
         if scaled:
@@ -156,8 +168,16 @@ class Unit(Thing):
         if self.actions > 0:
             self.actions -= 1
             building_option = choose_buildings()
-            process_request((0,self.x,self.y,building_option,1))
-            req_queue.put((0,self.x,self.y,building_option,2))
+            # Check if the building is valid
+            if can_build(building_option, self.x, self.y):
+                for i in range(num_resource_types):
+                    resources[i] -= build_cost[building_option-1][i]
+                process_request((0,self.x,self.y,building_option,1))
+                req_queue.put((0,self.x,self.y,building_option,2))
+                global redraw_map
+                redraw_map = True
+            else:
+                print("Cwy")
 
     def update_visible(self):
         for x in range(self.x-unit_sight_range, self.x+unit_sight_range+1):
@@ -167,15 +187,11 @@ class Unit(Thing):
 
 class Building(Thing):
     def __init__(self,type,x_loc,y_loc,team):
-        self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
+        #self.image = pygame.Surface((tile_width-50, tile_width-50), pygame.SRCALPHA) # Transparent background
+        self.image = pygame.transform.scale(images[type-1], (tile_width-50, tile_width-50))
         rect = self.image.get_rect(topleft=(25+(x_loc-x_disp)*tile_width,25+(y_loc-y_disp)*tile_width))
         super().__init__(type,x_loc,y_loc,rect)
         self.team = team
-        if type == 1:
-            if team == 1:
-                pygame.draw.circle(self.image,(128,128,255),self.image.get_rect().center,75)
-            else:
-                pygame.draw.circle(self.image,(255,128,128),self.image.get_rect().center,75)
     def update_rect(self):
         self.rect = self.image.get_rect(topleft=(25+(self.x-x_disp)*tile_width,25+(self.y-y_disp)*tile_width))
 
@@ -198,8 +214,6 @@ tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
 
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
 opponent_units_list = [Unit(1, opponent_start[0]+6, opponent_start[1]+4, 2)]
-print(opponent_units_list[0].x)
-print(opponent_units_list[0].y)
 
 my_buildings_list = []
 opponent_buildings_list = []
@@ -210,8 +224,22 @@ x,
 y,
 index/type
 team)
-'''
+
+Resources
+["Water", "Food", "Wood", "Stone", "Copper", "Oil"] '''
 server_ready = True
+def can_build(option, x, y):
+    for i in range(num_resource_types):
+        if resources[i] < build_cost[option-1][i]:
+            return False
+        
+    if option == 1:
+            return map_info[x][y][0] != 4
+    elif option == 2:
+        return map_info[x][y][0] != 4 and map_info[x][y][2]
+    elif option == 3:
+        return map_info[x][y][0] != 4 and map_tiles[x][y][1]
+
 def send_request():
     client.sendall(pickle.dumps(req_queue.get()))
     global server_ready
@@ -244,9 +272,7 @@ def process_request(array):
         if array[4] == 1:
             my_units_list[array[3]].move(array[1],array[2])
         elif array[4] == 2:
-            print("Old position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
             opponent_units_list[array[3]].move(array[1],array[2])
-            print("New position: "+str((opponent_units_list[0].x, opponent_units_list[0].y)))
     elif array[0] == 3:
         for unit in opponent_units_list:
             unit.moves = unit.moves_per_turn
@@ -289,9 +315,9 @@ def draw_units():
             unit.update_rect()
             screen.blit(unit.image, unit.rect)
     for unit in opponent_units_list:
-        if tiles_in_sight[unit.x][unit.y] and discovered_tiles[x][y] and unit.is_visible(x_disp, y_disp):
-            unit.update_rect()
-            screen.blit(unit.image, unit.rect)
+        if tiles_in_sight[unit.x][unit.y] and unit.is_visible(x_disp, y_disp):
+                    unit.update_rect()
+                    screen.blit(unit.image, unit.rect)
 
 def draw_buildings():
     for building in my_buildings_list:
@@ -315,7 +341,6 @@ def choose_buildings():
         event = pygame.event.wait()
         if event.type == pygame.MOUSEBUTTONDOWN and event.pos[0]>3/4*screen_width:
             option = int((event.pos[1])/100)
-            print(option)
             if 0 < option < 1+len(types_string):
                 return option
         elif event.type == pygame.QUIT:
@@ -336,7 +361,6 @@ draw_units()
 pygame.display.flip()
 
 threading.Thread(target=process_requests, daemon=True).start()
-#threading.Thread(target=send_requests, daemon=True).start()
 
 # Game Loop:
 running = True
@@ -408,5 +432,4 @@ while running:
             draw_units()
             pygame.display.flip()
 
-print((opponent_units_list[0].x,opponent_units_list[0].y))
 pygame.quit()
