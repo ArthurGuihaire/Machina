@@ -1,5 +1,5 @@
 import pygame
-import numpy
+import numpy as np
 import queue
 import socket
 import pickle
@@ -40,28 +40,33 @@ else:
 client.sendall(pickle.dumps("Client connected"))
 
 #region Initialize
-colors = [[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]]
-colors_greyed = [[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]]
+colors = np.array([[128,128,128], [128,255,0], [255,255,255], [255,255,0], [0,0,255]])
+colors_greyed = np.array([[128,128,128], [128,192,64], [192,192,192], [192,192,64], [64,64,192]])
 types_string = ["Village","Farm","Water Wheel","Lumber mill"]
-build_cost = numpy.array([[0,0,5,0,0,0],
+build_cost = np.array([
+[0,0,5,0,0,0],
 [0,0,5,0,0,0],
 [0,0,8,0,0,0],
 [0,0,5,0,0,0],
-], dtype=numpy.int16)
+], dtype=np.int16)
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 resource_colors = [(128,128,255),(255,255,0),(192,192,128),(128,128,128),(255,128,0),(32,0,64)]
 num_resource_types = len(resource_types)
-resources = numpy.zeros((num_resource_types),dtype=numpy.int16)
+resources = np.zeros((num_resource_types),dtype=np.int16)
 resources[2] = 15
+#endregion
+
+#region Game variables
 building_sight_range = 2
 unit_sight_range = 3
+nobuild_range = 4
 #endregion
 
 #region Recieve startup data
 ping_packet = pickle.dumps("ping")
 map_width, map_height = pickle.loads(client.recv(64))
 client.send(ping_packet)
-map_info = numpy.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=numpy.int8).reshape(map_width, map_height, 1+num_resource_types)
+map_info = np.frombuffer(recieve_large(map_width*map_height*(1+num_resource_types)), dtype=np.int8).reshape(map_width, map_height, 1+num_resource_types)
 client.send(ping_packet)
 x_disp, y_disp = pickle.loads(client.recv(64))
 client.send(ping_packet)
@@ -215,9 +220,9 @@ for x in range(map_width):
     for y in range(map_height):
         map_tiles[x].append(Tile(map_info[x][y]))
 
-discovered_tiles = numpy.empty((map_width, map_height), dtype = bool)
+discovered_tiles = np.empty((map_width, map_height), dtype = bool)
 discovered_tiles.fill(False)
-tiles_in_sight = numpy.empty((map_width, map_height), dtype = bool)
+tiles_in_sight = np.empty((map_width, map_height), dtype = bool)
 
 my_units_list = [Unit(1, x_disp+6, y_disp+4,1)]
 opponent_units_list = [Unit(1, opponent_start[0]+6, opponent_start[1]+4, 2)]
@@ -239,9 +244,15 @@ def can_build(option, x, y):
     for i in range(num_resource_types):
         if resources[i] < build_cost[option-1][i]:
             return False
+    for building in my_buildings_list:
+        if building.x == x and building.y == y:
+            return False
+    for building in opponent_buildings_list:
+        if abs(building.x-x) <= nobuild_range and abs(building.y-y) <= nobuild_range:
+            return False
         
     if option == 1:
-            return map_info[x][y][0] != 4
+        return map_info[x][y][0] != 4
     elif option == 2:
         return map_info[x][y][0] != 4 and map_info[x][y][2]
     elif option == 3:
