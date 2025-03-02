@@ -3,7 +3,7 @@ import threading
 import os
 import pickle
 import random
-import numpy
+import numpy as np
 import math
 
 # Game variables to be socket-transfered
@@ -12,7 +12,7 @@ num_biomes = 20
 # biome types: 1 = plains, 2 = tundra, 3 = desert, 4 = ocean
 ocean_scale_factor = 0.7 # Divides size by 0.7 so bigger
 resource_frequency = [[0.1,0.1,0.1,0.1,0.1,0.1], [0.1,0.08,0.1,0.1,0.1,0.2], [0.08, 0.02, 0.02, 0.1, 0.15, 0.1], [0,0.15,0,0,0,0.1]]
-resource_frequency = numpy.array(resource_frequency, dtype = float)
+resource_frequency = np.array(resource_frequency, dtype = float)
 resource_types = ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
 
 num_resource_types = len(resource_types)
@@ -31,14 +31,25 @@ local_server.listen()
 remote_server.listen()
 
 ping_packet = pickle.dumps('ping')
+passturn_packet = pickle.dumps('pass')
 
-def handle_client(conn, conn2):
+players_passed_turn = np.array([False, False], dtype=bool)
+
+def handle_client(conn, conn2, player_num):
     try:
         while True:
             data = conn.recv(1024)
             if not data:
                 break
-            conn2.sendall(data)
+            if data == passturn_packet:
+                players_passed_turn[player_num] = True
+                if player_num == 0 and all(players_passed_turn):
+                    conn.send(passturn_packet)
+                    conn2.send(passturn_packet)
+                    players_passed_turn.fill(False)
+                    print("passed turn")
+            else:
+                conn2.sendall(data)
             conn.send(ping_packet)
     except (ConnectionResetError, BrokenPipeError):
         print("Connection lost. Closing...")
@@ -54,7 +65,7 @@ def make_map():
     for i in range(num_biomes):
         biomes.append((random.randint(0,map_width-1), random.randint(0,map_height-1), int((random.randint(2,8))/2)))
     global map_tiles
-    map_tiles = numpy.zeros((map_width,map_height,1+num_resource_types), dtype=numpy.int8)
+    map_tiles = np.zeros((map_width,map_height,1+num_resource_types), dtype=np.int8)
     for x in range(map_width):
         for y in range(map_height):
             min_distance = 255
@@ -72,14 +83,10 @@ def make_map():
 
 def send_startup_data(sock):
     print(pickle.loads(sock.recv(64)))
-    print("recieve 1")
     sock.sendall(pickle.dumps((map_width, map_height)))
-    print("send 1")
     sock.recv(64)
-    print("recieve 2")
-    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for numpy array
+    sock.sendall(map_tiles.tobytes()) # More efficient than pickle for np array
     #region Generate Start
-    print("send 2")
     x_disp = random.randint(0, map_width - 12)
     y_disp = random.randint(0, map_height - 8)
     while map_tiles[x_disp+6][y_disp+4][0] == 4:
@@ -87,9 +94,7 @@ def send_startup_data(sock):
         y_disp = random.randint(0, map_height - 8) # Distance from the top of the map
     #endregion
     sock.recv(64)
-    print("recieve 3")
     sock.sendall(pickle.dumps((x_disp, y_disp)))
-    print("send 3")
     return (x_disp, y_disp)
 
 def exchange_starts(start1, start2, conn1, conn2):
@@ -112,5 +117,5 @@ print("Servers are running... Press Ctrl+C to stop.")
 synchronize(local_conn, remote_conn)
 exchange_starts(start1, start2, local_conn, remote_conn)
 
-threading.Thread(target=handle_client, args=(local_conn,remote_conn)).start()
-handle_client(remote_conn, local_conn)
+threading.Thread(target=handle_client, args=(local_conn, remote_conn, 0)).start()
+handle_client(remote_conn, local_conn, 1)

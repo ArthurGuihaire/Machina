@@ -6,3 +6,7 @@ Biomes
 
 Resources
 ["Water", "Food", "Wood", "Stone", "Copper", "Oil"]
+
+OPTIMIZATIONS
+- Make checking action legality (ex. checking for valid move) only be done 
+    frontend (only send request if valid)
