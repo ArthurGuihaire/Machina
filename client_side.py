@@ -425,7 +425,7 @@ while running:
         elif event.key == pygame.K_EQUALS: # Exit minimap mode
             redraw_map = True
         elif event.key == pygame.K_RETURN: # Pass turn
-            req_queue.put(('pass'))
+            req_queue.put('pass')
 
         elif unit_is_selected:
             if event.key == pygame.K_w:
@@ -442,8 +442,6 @@ while running:
                 req_queue.put((2,1,0,unit_selected,2))
             elif event.key == pygame.K_b:
                 my_units_list[unit_selected].build()
-            if server_ready and not req_queue.empty():
-                send_request()
             if redraw_map:
                 make_visible(my_units_list[unit_selected].x,my_units_list[unit_selected].y,3)
     elif event.type == pygame.QUIT:
@@ -456,6 +454,9 @@ while running:
             if my_units_list[i].get_collisions(event.pos[0],event.pos[1]):
                 unit_is_selected = True
                 unit_selected = i
+
+    if server_ready and not req_queue.empty():
+        send_request()
 
     update_sight()
     if redraw_map:

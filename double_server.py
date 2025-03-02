@@ -43,11 +43,10 @@ def handle_client(conn, conn2, player_num):
                 break
             if data == passturn_packet:
                 players_passed_turn[player_num] = True
-                if player_num == 0 and all(players_passed_turn):
+                if all(players_passed_turn):
                     conn.send(passturn_packet)
                     conn2.send(passturn_packet)
                     players_passed_turn.fill(False)
-                    print("passed turn")
             else:
                 conn2.sendall(data)
             conn.send(ping_packet)
