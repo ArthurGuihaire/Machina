@@ -47,6 +47,7 @@ def handle_client(conn, conn2, player_num):
                     conn.send(passturn_packet)
                     conn2.send(passturn_packet)
                     players_passed_turn.fill(False)
+                    print("passed turn")
             else:
                 conn2.sendall(data)
             conn.send(ping_packet)

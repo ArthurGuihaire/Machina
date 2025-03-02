@@ -309,8 +309,6 @@ def process_request(array):
             unit.moves = unit.moves_per_turn
         for building in my_buildings_list:
             building.generate_resources()
-        for building in opponent_buildings_list:
-            building.generate_resources()
 
 def draw(x_disp,y_disp):
     for x in range(x_disp, x_disp+tile_disp_x):
